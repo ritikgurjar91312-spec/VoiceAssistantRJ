@@ -1,0 +1,11 @@
+customtkinter
+pymongo
+SpeechRecognition
+pyttsx3
+opencv-python
+pillow
+python-dotenv
+groq
+edge-tts>=7.3.1
+pygame-ce>=2.5.8
+sounddevice

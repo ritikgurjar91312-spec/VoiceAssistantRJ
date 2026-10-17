@@ -1,0 +1,1684 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>R.K — Personal Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-void: #04070c;
+    --bg-panel: #0a1420;
+    --bg-panel-2: #0d1826;
+    --cyan: #4fe0ff;
+    --cyan-dim: #1c6d8a;
+    --cyan-glow: rgba(79,224,255,0.55);
+    --amber: #ffb545;
+    --red: #ff5c5c;
+    --text-hi: #eaf6fb;
+    --text-mid: #9fc4d4;
+    --text-dim: #5a7c8c;
+    --line: rgba(79,224,255,0.18);
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background: radial-gradient(ellipse at 50% -10%, #0b1e2c 0%, var(--bg-void) 55%);
+    color: var(--text-hi);
+    font-family:'Rajdhani', sans-serif;
+    overflow:hidden;
+  }
+  #app{
+    height:100vh; width:100vw;
+    display:flex; flex-direction:column;
+    padding: 14px;
+    gap:10px;
+  }
+
+  /* ---------- Background grid/scan ---------- */
+  .bg-grid{
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background-image:
+      linear-gradient(rgba(79,224,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,224,255,0.035) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: radial-gradient(ellipse at 50% 30%, black 0%, transparent 75%);
+  }
+  .scanline{
+    position:fixed; left:0; right:0; height:120px; z-index:1; pointer-events:none;
+    background: linear-gradient(180deg, transparent, rgba(79,224,255,0.05), transparent);
+    animation: scan 7s linear infinite;
+  }
+  @keyframes scan{ 0%{top:-120px;} 100%{top:100vh;} }
+
+  /* ---------- Header ---------- */
+  header{
+    position:relative; z-index:2;
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 6px 4px 10px 4px;
+    border-bottom: 1px solid var(--line);
+    flex-shrink:0;
+  }
+  .brand{ display:flex; align-items:center; gap:12px; }
+  .brand-dot{
+    width:10px; height:10px; border-radius:50%;
+    background: var(--cyan);
+    box-shadow: 0 0 8px 2px var(--cyan-glow);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+  @keyframes pulse-dot{ 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+  .brand h1{
+    font-family:'Orbitron', sans-serif; font-weight:900;
+    font-size: 20px; letter-spacing:4px; margin:0;
+    color: var(--text-hi);
+    text-shadow: 0 0 14px var(--cyan-glow);
+  }
+  .brand span{ color: var(--cyan); }
+  .status-line{
+    font-family:'Space Mono', monospace; font-size:11px; color: var(--text-dim);
+    letter-spacing:1px; margin-top:2px;
+  }
+  .status-line b{ color: var(--cyan); font-weight:700; }
+  .clock{
+    font-family:'Space Mono', monospace; font-size: 13px; color: var(--text-mid); text-align:right;
+    letter-spacing:1px;
+  }
+  .clock .date{ font-size:10px; color: var(--text-dim); }
+
+  /* ---------- Diagnostic banner ---------- */
+  .diag-banner{
+    position:relative; z-index:2; flex-shrink:0;
+    font-family:'Space Mono',monospace; font-size:12px; line-height:1.6;
+    color:#ffd9a0; background: rgba(255,181,69,0.08); border:1px solid rgba(255,181,69,0.4);
+    border-radius:4px; padding:10px 14px; margin-bottom:2px;
+  }
+  .diag-banner a{ color: var(--cyan); }
+  .diag-banner code{ background: rgba(255,255,255,0.08); padding:1px 5px; border-radius:3px; }
+
+  /* ---------- Main layout ---------- */
+  main{
+    flex:1; min-height:0;
+    display:grid;
+    grid-template-columns: 300px 1fr;
+    gap: 14px;
+    position:relative; z-index:2;
+  }
+  @media (max-width: 820px){
+    main{ grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .side-panel{ order:2; max-height:180px; }
+    .core-panel{ order:1; }
+  }
+
+  .panel{
+    background: linear-gradient(180deg, var(--bg-panel), var(--bg-panel-2));
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    position:relative;
+    overflow:hidden;
+  }
+  .panel::before{
+    content:''; position:absolute; top:0; left:0; width:22px; height:22px;
+    border-top:2px solid var(--cyan); border-left:2px solid var(--cyan); opacity:0.7;
+  }
+  .panel::after{
+    content:''; position:absolute; bottom:0; right:0; width:22px; height:22px;
+    border-bottom:2px solid var(--cyan); border-right:2px solid var(--cyan); opacity:0.7;
+  }
+
+  /* ---------- Side panel: tasks ---------- */
+  .side-panel{ display:flex; flex-direction:column; padding:16px; min-height:0; gap:14px; overflow-y:auto; }
+  .side-block{ display:flex; flex-direction:column; min-height:0; flex-shrink:0; }
+  .tasks-block{ flex: 1 1 auto; min-height:160px; }
+  .memory-block{ border-top:1px dashed var(--line); padding-top:12px; max-height:140px; }
+  .upgrades-block{ border-top:1px dashed var(--line); padding-top:12px; max-height:160px; }
+  .side-title{
+    font-family:'Orbitron', sans-serif; font-size:12px; letter-spacing:3px;
+    color: var(--cyan); margin:0 0 4px 0;
+  }
+  .side-sub{ font-family:'Space Mono',monospace; font-size:10px; color:var(--text-dim); margin-bottom:14px; }
+  .memory-list{ overflow-y:auto; display:flex; flex-direction:column; gap:6px; max-height:100px; }
+  .memory-item{
+    padding:6px 9px; background: rgba(79,224,255,0.04); border-left:2px solid var(--cyan-dim);
+    border-radius:2px; font-size:12px; line-height:1.35; color: var(--text-mid);
+  }
+  .upgrade-log{ flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding-right:2px; }
+  .upgrade-item{
+    padding:8px 10px; background: rgba(255,181,69,0.05); border-left:2px solid var(--amber);
+    border-radius:2px; font-size:12px; line-height:1.4; color: var(--text-mid);
+  }
+  .upgrade-item .u-time{ display:block; font-family:'Space Mono',monospace; font-size:9px; color:var(--text-dim); margin-top:3px; }
+  .task-form{ display:flex; gap:6px; margin-bottom:12px; }
+  .task-form input{
+    flex:1; background: rgba(79,224,255,0.05); border:1px solid var(--line);
+    color: var(--text-hi); padding:8px 10px; border-radius:3px; font-family:'Rajdhani';
+    font-size:14px; outline:none;
+  }
+  .task-form input:focus{ border-color: var(--cyan); }
+  .task-form button{
+    background: transparent; border:1px solid var(--cyan-dim); color:var(--cyan);
+    border-radius:3px; width:36px; cursor:pointer; font-size:16px; font-family:'Orbitron';
+    transition: all .15s;
+  }
+  .task-form button:hover{ background: var(--cyan); color:#04070c; box-shadow:0 0 10px var(--cyan-glow); }
+  .task-list{ flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding-right:2px; }
+  .task-item{
+    display:flex; align-items:flex-start; gap:8px;
+    padding:8px 10px; background: rgba(255,255,255,0.02);
+    border-left: 2px solid var(--cyan-dim); border-radius:2px;
+    font-size:14px; line-height:1.3;
+  }
+  .task-item.done{ border-left-color: var(--text-dim); opacity:0.45; }
+  .task-item.done .task-text{ text-decoration: line-through; }
+  .task-check{
+    width:15px; height:15px; border:1px solid var(--cyan-dim); border-radius:3px;
+    flex-shrink:0; margin-top:2px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    font-size:10px; color:var(--cyan);
+  }
+  .task-item.done .task-check{ background: var(--cyan-dim); }
+  .task-text{ flex:1; color: var(--text-mid); word-break:break-word; }
+  .task-del{ cursor:pointer; color: var(--text-dim); font-size:14px; flex-shrink:0; }
+  .task-del:hover{ color: var(--red); }
+  .task-empty{ color: var(--text-dim); font-size:12px; font-family:'Space Mono'; text-align:center; margin-top:20px; }
+
+  /* ---------- Core panel: orb + chat ---------- */
+  .core-panel{ display:flex; flex-direction:column; min-height:0; padding:0; }
+
+  .orb-zone{
+    flex-shrink:0; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; padding: 18px 0 8px 0; position:relative;
+  }
+  .orb-wrap{ position:relative; width:120px; height:120px; }
+  .orb-ring{
+    position:absolute; inset:0; border-radius:50%;
+    border:1px solid var(--cyan-dim); opacity:0.5;
+  }
+  .orb-ring.r2{ inset:-14px; animation: rotate 12s linear infinite; border-style:dashed; }
+  .orb-ring.r3{ inset:-28px; animation: rotate 20s linear infinite reverse; opacity:0.25; }
+  @keyframes rotate{ from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+  .orb-core{
+    position:absolute; inset:20px; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, #bdf5ff, var(--cyan) 40%, var(--cyan-dim) 100%);
+    box-shadow: 0 0 30px 8px var(--cyan-glow), inset 0 0 20px rgba(255,255,255,0.4);
+    cursor:pointer; transition: transform .15s;
+  }
+  .orb-core:hover{ transform: scale(1.04); }
+  .orb-core.listening{ animation: pulse-listen 1s ease-in-out infinite; }
+  .orb-core.speaking{ animation: pulse-speak 0.4s ease-in-out infinite; }
+  @keyframes pulse-listen{ 0%,100%{ box-shadow:0 0 30px 8px var(--cyan-glow), inset 0 0 20px rgba(255,255,255,0.4);} 50%{ box-shadow:0 0 50px 18px var(--cyan-glow), inset 0 0 30px rgba(255,255,255,0.6);} }
+  @keyframes pulse-speak{ 0%,100%{ transform:scale(1);} 50%{ transform:scale(1.07);} }
+  .mic-icon{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#04121a; font-size:26px; pointer-events:none; }
+
+  .orb-label{ font-family:'Space Mono',monospace; font-size:11px; color: var(--text-dim); margin-top:12px; letter-spacing:1px; text-align:center; min-height:14px;}
+  .orb-label b{ color: var(--cyan); font-weight:700; }
+
+  .chat-scroll{
+    flex:1; min-height:0; overflow-y:auto; padding: 6px 20px 10px 20px;
+    display:flex; flex-direction:column; gap:12px;
+  }
+  .msg{ max-width:82%; padding:10px 14px; border-radius:4px; font-size:15px; line-height:1.5; }
+  .msg.user{ align-self:flex-end; background: rgba(79,224,255,0.12); border:1px solid var(--line); color: var(--text-hi); }
+  .msg.assistant{ align-self:flex-start; background: rgba(255,255,255,0.03); border-left:2px solid var(--cyan); color: var(--text-mid); }
+  .msg.assistant b.tag, .msg.user b.tag{
+    display:block; font-family:'Space Mono',monospace; font-size:9px; letter-spacing:2px;
+    color: var(--cyan); margin-bottom:4px; opacity:0.7;
+  }
+  .msg.assistant .content, .msg.user .content{ white-space: pre-wrap; }
+  .msg.thinking{ font-family:'Space Mono',monospace; font-size:12px; color: var(--text-dim); }
+  .dots span{ animation: blink 1.4s infinite; }
+  .dots span:nth-child(2){ animation-delay:.2s;} .dots span:nth-child(3){ animation-delay:.4s;}
+  @keyframes blink{ 0%,80%,100%{opacity:0.2;} 40%{opacity:1;} }
+
+  .empty-chat{ margin:auto; text-align:center; color: var(--text-dim); font-family:'Space Mono',monospace; font-size:12px; max-width:320px; line-height:1.8; }
+
+  /* ---------- Live modules drawer ---------- */
+  .modules-strip{
+    flex-shrink:0; display:flex; align-items:center; justify-content:space-between;
+    padding: 6px 20px; margin: 0 16px; border-top:1px dashed var(--line);
+    font-family:'Space Mono',monospace; font-size:10px; color: var(--text-dim);
+    letter-spacing:1px; cursor:pointer; user-select:none;
+  }
+  .modules-strip:hover{ color: var(--cyan); }
+  .modules-chevron{ transition: transform .2s; font-size:9px; }
+  .modules-drawer{
+    flex-shrink:0; max-height:0; overflow:hidden; transition: max-height .25s ease;
+    padding: 0 20px;
+  }
+  .modules-drawer.open{ max-height:220px; overflow-y:auto; padding: 10px 20px; }
+  #dynamicFeatures{ display:flex; flex-direction:column; gap:10px; }
+  #dynamicFeatures:empty::after{
+    content:'Abhi koi module install nahi hua.';
+    font-family:'Space Mono',monospace; font-size:11px; color:var(--text-dim);
+  }
+  .upg-widget{
+    background: rgba(255,181,69,0.04); border:1px solid rgba(255,181,69,0.25);
+    border-radius:4px; padding:12px;
+  }
+
+  /* ---------- Voice settings row ---------- */
+  .voice-settings{
+    flex-shrink:0; display:flex; align-items:center; gap:8px;
+    padding: 8px 16px 0 16px; font-family:'Space Mono',monospace; font-size:10px;
+    color: var(--text-dim); letter-spacing:1px; flex-wrap:wrap;
+  }
+  .voice-settings label{ flex-shrink:0; }
+  .voice-settings select{
+    background: rgba(79,224,255,0.05); border:1px solid var(--line); color: var(--text-hi);
+    font-family:'Rajdhani'; font-size:12px; padding:4px 6px; border-radius:3px; outline:none;
+    max-width:170px; flex:1; min-width:90px;
+  }
+  .voice-settings select:focus{ border-color: var(--cyan); }
+  .voice-settings input[type="range"]{
+    width:70px; accent-color: var(--cyan); flex-shrink:0;
+  }
+  .voice-settings .test-btn{
+    width:26px; height:26px; font-size:11px; flex-shrink:0; margin-left:auto;
+  }
+
+  /* ---------- Input bar ---------- */
+  .input-bar{
+    flex-shrink:0; display:flex; gap:8px; align-items:center;
+    padding: 12px 16px; border-top:1px solid var(--line);
+  }
+  .input-bar input{
+    flex:1; background: rgba(79,224,255,0.05); border:1px solid var(--line);
+    color: var(--text-hi); padding:11px 14px; border-radius:3px; font-family:'Rajdhani';
+    font-size:15px; outline:none;
+  }
+  .input-bar input:focus{ border-color: var(--cyan); }
+  .icon-btn{
+    background: transparent; border:1px solid var(--cyan-dim); color:var(--cyan);
+    border-radius:3px; width:42px; height:42px; cursor:pointer; font-size:17px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0; transition: all .15s;
+  }
+  .icon-btn:hover{ background: var(--cyan); color:#04070c; box-shadow:0 0 10px var(--cyan-glow); }
+  .icon-btn.active{ background: var(--cyan); color:#04070c; box-shadow:0 0 10px var(--cyan-glow); }
+  .icon-btn.mute{ border-color: var(--text-dim); color: var(--text-dim); }
+  .icon-btn.mute.on{ border-color: var(--cyan); color: var(--cyan); }
+  .icon-btn.lang-btn{ font-size:12px; font-family:'Space Mono',monospace; font-weight:700; }
+  .icon-btn.handsfree-btn.active{ background: var(--amber); border-color: var(--amber); color:#1a0f00; box-shadow:0 0 10px rgba(255,181,69,0.6); }
+
+  ::-webkit-scrollbar{ width:6px; }
+  ::-webkit-scrollbar-thumb{ background: var(--cyan-dim); border-radius:3px; }
+  ::-webkit-scrollbar-track{ background: transparent; }
+
+  /* UI fixes */
+  .diag-banner{ position:relative; }
+  .diag-banner .diag-close{
+    position:absolute; top:6px; right:10px; cursor:pointer;
+    color:var(--amber); font-size:16px; line-height:1; border:none; background:transparent;
+  }
+  .key-ok-badge{
+    display:none; font-family:'Space Mono',monospace; font-size:9px;
+    color:#3dff9a; letter-spacing:1px; margin-left:6px;
+  }
+  .key-ok-badge.on{ display:inline; }
+  #camPreview{
+    display:none; position:fixed; right:16px; bottom:90px; z-index:50;
+    width:160px; height:120px; border:1px solid var(--cyan); border-radius:4px;
+    object-fit:cover; background:#000; box-shadow:0 0 20px var(--cyan-glow);
+  }
+  .input-bar{ flex-wrap:wrap; }
+  @media (max-width: 820px){
+    .side-panel{ max-height:220px !important; }
+    .orb-wrap{ width:90px; height:90px; }
+    .msg{ max-width:92%; font-size:14px; }
+    header{ flex-wrap:wrap; gap:8px; }
+    .brand h1{ font-size:16px; }
+  }
+  .sending-lock .input-bar input{ opacity:0.6; }
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="scanline"></div>
+
+<div id="app">
+  <header>
+    <div class="brand">
+      <div class="brand-dot"></div>
+      <div>
+        <h1>J.<span>A</span>.R.V.I.S</h1>
+        <div class="status-line">SYSTEM <b id="sysStatus">ONLINE</b> — BUILD <b id="buildVersion">1.0</b> <span class="key-ok-badge" id="keyBadge">● GEMINI READY</span></div>
+      </div>
+    </div>
+    <div class="clock" style="display:flex;align-items:center;gap:12px;">
+      <button class="icon-btn" id="settingsBtn" title="Settings / API key" style="width:36px;height:36px;font-size:16px;">⚙</button>
+      <div>
+        <div id="clockTime">--:--:--</div>
+        <div class="date" id="clockDate">-- --- ----</div>
+      </div>
+    </div>
+  </header>
+
+  <div id="settingsModal" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(4,7,12,0.85);align-items:center;justify-content:center;">
+    <div class="panel" style="width:min(420px,92vw);padding:20px;max-height:90vh;overflow:auto;">
+      <div class="side-title" style="margin-bottom:12px;">SETTINGS</div>
+      <label style="font-family:'Space Mono',monospace;font-size:11px;color:var(--text-dim);display:block;margin-bottom:6px;">Google Gemini API Key</label>
+      <input id="apiKeyInput" type="password" placeholder="AIza..." style="width:100%;background:rgba(79,224,255,0.05);border:1px solid var(--line);color:var(--text-hi);padding:10px 12px;border-radius:3px;font-family:'Rajdhani';font-size:14px;outline:none;margin-bottom:10px;" />
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <button class="icon-btn" id="saveKeyBtn" style="width:auto;padding:0 14px;height:36px;font-size:13px;">Save Key</button>
+        <button class="icon-btn" id="clearKeyBtn" style="width:auto;padding:0 14px;height:36px;font-size:13px;border-color:var(--text-dim);color:var(--text-dim);">Clear</button>
+        <button class="icon-btn" id="closeSettingsBtn" style="width:auto;padding:0 14px;height:36px;font-size:13px;margin-left:auto;">Close</button>
+      </div>
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--text-dim);line-height:1.6;">
+        Key <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--cyan);">aistudio.google.com/apikey</a> se lein (free).<br/>
+        Model: <b style="color:var(--cyan);">gemini-3.5-flash</b>. Key localStorage mein rehti hai.<br/><br/>
+        Gemini browser se direct call allow karta hai (CORS OK). Tasks, memory aur TTS key ke bina bhi kaam karte hain.
+      </div>
+    </div>
+  </div>
+
+  <div class="diag-banner" id="diagBanner" style="display:none;"></div>
+
+  <main>
+    <section class="panel side-panel">
+      <div class="side-block tasks-block">
+        <div class="side-title">TASK LOG</div>
+        <div class="side-sub" id="taskCount">0 active directives</div>
+        <div class="task-form">
+          <input id="taskInput" type="text" placeholder="Naya task likhein..." />
+          <button id="taskAddBtn">+</button>
+        </div>
+        <div class="task-list" id="taskList"></div>
+      </div>
+
+      <div class="side-block memory-block">
+        <div class="side-title">MEMORY</div>
+        <div class="side-sub">User ki aadatein aur pasand</div>
+        <div class="memory-list" id="memoryFacts"></div>
+      </div>
+
+      <div class="side-block upgrades-block">
+        <div class="side-title">SELF-UPGRADE LOG</div>
+        <div class="side-sub" id="upgradeCount">0 modules installed</div>
+        <div class="upgrade-log" id="upgradeLog">
+          <div class="task-empty">Mujhe koi naya feature add karne ko kaho — main khud bana lunga.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel core-panel">
+      <div class="orb-zone">
+        <div class="orb-wrap">
+          <div class="orb-ring r3"></div>
+          <div class="orb-ring r2"></div>
+          <div class="orb-ring"></div>
+          <div class="orb-core" id="orbCore"><div class="mic-icon">◉</div></div>
+        </div>
+        <div class="orb-label" id="orbLabel">Bolne ke liye orb par tap karein, ya neeche type karein</div>
+      </div>
+
+      <div class="chat-scroll" id="chatScroll">
+        <div class="empty-chat" id="emptyChat">
+          — R.K ONLINE —<br/>
+          Main aapka personal assistant hoon.<br/>
+          Sawal poochhein, task add karwayein, ya bas baat karein.
+        </div>
+      </div>
+
+      <div class="modules-strip" id="modulesStrip">
+        <span id="modulesToggleLabel">🛠 LIVE MODULES (0)</span>
+        <span class="modules-chevron" id="modulesChevron">▲</span>
+      </div>
+      <div class="modules-drawer" id="modulesDrawer">
+        <div id="dynamicFeatures"></div>
+      </div>
+
+      <div class="voice-settings" id="voiceSettings">
+        <label for="voiceSelect">Voice</label>
+        <select id="voiceSelect"></select>
+        <label for="rateRange">Speed</label>
+        <input type="range" id="rateRange" min="0.7" max="1.2" step="0.05" value="0.92" />
+        <button class="icon-btn test-btn" id="testVoiceBtn" title="Test this voice">▶</button>
+      </div>
+      <div class="input-bar">
+        <button class="icon-btn mute on" id="muteBtn" title="Voice reply on/off">🔊</button>
+        <input id="chatInput" type="text" placeholder="Message likhein..." autocomplete="off" />
+        <button class="icon-btn lang-btn" id="langToggleBtn" title="Voice input language">हिं</button>
+        <button class="icon-btn" id="micBtn" title="Voice input">🎤</button>
+        <button class="icon-btn handsfree-btn" id="handsFreeBtn" title="Hands-free continuous conversation">🎧</button>
+        <button class="icon-btn" id="camBtn" title="Camera se dekho (vision)">📷</button>
+        <button class="icon-btn" id="sendBtn" title="Send">➤</button>
+      </div>
+      <video id="camVideo" autoplay playsinline style="display:none;"></video>
+      <canvas id="camCanvas" style="display:none;"></canvas>
+      <video id="camPreview" autoplay playsinline muted></video>
+    </section>
+  </main>
+</div>
+
+<script>
+(function(){
+
+  // ---------------- Storage polyfill (window.storage OR localStorage) ----------------
+  const storage = (function(){
+    if (typeof window.storage !== 'undefined' && window.storage && typeof window.storage.get === 'function') {
+      return window.storage;
+    }
+    return {
+      async get(key, _shared) {
+        try {
+          const v = localStorage.getItem(key);
+          return { value: v };
+        } catch (e) {
+          return { value: null };
+        }
+      },
+      async set(key, value, _shared) {
+        try {
+          localStorage.setItem(key, value);
+        } catch (e) {
+          console.error('localStorage set failed', e);
+        }
+      }
+    };
+  })();
+
+  // ---------------- Google Gemini API key ----------------
+  let apiKey = '';
+  try { apiKey = (localStorage.getItem('jarvis-gemini-key') || localStorage.getItem('jarvis-api-key') || '').trim(); } catch(e) {}
+  // Fast model for chat; flash still capable for upgrades
+  const GEMINI_MODEL = 'gemini-3.5-flash';
+  const GEMINI_MODEL_FAST = 'gemini-3.5-flash-lite';
+  const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
+  let keyNagShown = false;
+
+  function updateKeyBadge(){
+    const badge = document.getElementById('keyBadge');
+    if (badge) badge.classList.toggle('on', !!(apiKey && apiKey.trim()));
+  }
+
+  function getApiHeaders() {
+    const h = { 'Content-Type': 'application/json' };
+    if (apiKey) h['x-goog-api-key'] = apiKey;
+    return h;
+  }
+
+  function ensureApiKey() {
+    if (apiKey && apiKey.trim()) return true;
+    if (!keyNagShown) {
+      keyNagShown = true;
+      try {
+        showDiag(
+          '⚠️ <b>Google Gemini API key zaroori hai.</b> ⚙ Settings se apni key paste karein. ' +
+          'Free key: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a><br><br>' +
+          'Model: <b>gemini-3.5-flash</b>. Text UI + tasks + voice bina key ke bhi kaam karte hain.' +
+          '<button class="diag-close" type="button" onclick="this.parentElement.style.display=\'none\'">×</button>'
+        );
+      } catch(e) {}
+    }
+    return false;
+  }
+
+  function saveApiKey(k) {
+    apiKey = (k || '').trim();
+    try {
+      localStorage.setItem('jarvis-gemini-key', apiKey);
+      localStorage.setItem('jarvis-api-key', apiKey);
+    } catch(e) { console.error('key save failed', e); }
+    updateKeyBadge();
+    if (apiKey) {
+      keyNagShown = false;
+      try {
+        const db = document.getElementById('diagBanner');
+        if (db) db.style.display = 'none';
+        const ol = document.getElementById('orbLabel');
+        if (ol) ol.textContent = 'Gemini key set — ab baat shuru karein.';
+      } catch(e) {}
+    }
+  }
+
+  // Extract text from Gemini generateContent response
+  function extractGeminiText(data) {
+    try {
+      const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+      return parts.map(p => p.text || '').join('').trim();
+    } catch (e) {
+      return '';
+    }
+  }
+
+  // Map internal {role, content} history to Gemini contents (user / model)
+  function toGeminiContents(msgs) {
+    const out = [];
+    for (const m of msgs) {
+      if (!m || !m.content) continue;
+      const role = (m.role === 'assistant' || m.role === 'model') ? 'model' : 'user';
+      // skip pure system-style; system goes in systemInstruction
+      out.push({ role, parts: [{ text: String(m.content) }] });
+    }
+    // Gemini requires first content to be user; if starts with model, drop leading models
+    while (out.length && out[0].role === 'model') out.shift();
+    // merge consecutive same-role messages
+    const merged = [];
+    for (const c of out) {
+      if (merged.length && merged[merged.length - 1].role === c.role) {
+        merged[merged.length - 1].parts[0].text += '\n' + c.parts[0].text;
+      } else {
+        merged.push(c);
+      }
+    }
+    return merged;
+  }
+
+  async function geminiGenerate({ system, contents, maxTokens, tools, imagePart, model, temperature }) {
+    if (!ensureApiKey()) throw new Error('API key missing');
+    const body = {
+      contents: contents || [],
+      generationConfig: {
+        maxOutputTokens: maxTokens || 512,
+        temperature: temperature != null ? temperature : 0.6
+      }
+    };
+    if (system) {
+      body.systemInstruction = { parts: [{ text: system }] };
+    }
+    if (tools && tools.length) {
+      body.tools = tools;
+    }
+    if (imagePart) {
+      const textParts = (body.contents[0] && body.contents[0].parts) ? body.contents[0].parts : [{ text: 'Describe this image.' }];
+      body.contents = [{ role: 'user', parts: [imagePart, ...textParts] }];
+    }
+    const useModel = model || GEMINI_MODEL;
+    const url = GEMINI_BASE + useModel + ':generateContent';
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45000);
+    let res;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+    } catch (fe) {
+      clearTimeout(timer);
+      if (fe.name === 'AbortError') throw new Error('API timeout — network slow ya model busy. Dobara try karein.');
+      throw fe;
+    }
+    clearTimeout(timer);
+    if (!res.ok) {
+      const eb = await res.text().catch(() => '');
+      throw new Error('API error ' + res.status + (eb ? ': ' + eb.slice(0, 300) : ''));
+    }
+    const data = await res.json();
+    const text = extractGeminiText(data);
+    if (!text && data.promptFeedback) {
+      throw new Error('Blocked by safety: ' + JSON.stringify(data.promptFeedback).slice(0, 200));
+    }
+    // grounding / search may return text in parts still
+    return text || '';
+  }
+
+  // ---------------- Clock ----------------
+  function updateClock(){
+    const now = new Date();
+    document.getElementById('clockTime').textContent = now.toLocaleTimeString('en-GB');
+    document.getElementById('clockDate').textContent = now.toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'});
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  // ---------------- State ----------------
+  let tasks = [];
+  let messages = []; // {role, content} for API context
+  let voiceOn = true;
+  let recognition = null;
+  let listening = false;
+
+  const chatScroll = document.getElementById('chatScroll');
+  const emptyChat = document.getElementById('emptyChat');
+  const taskList = document.getElementById('taskList');
+  const taskCount = document.getElementById('taskCount');
+  const orbCore = document.getElementById('orbCore');
+  const orbLabel = document.getElementById('orbLabel');
+  const chatInput = document.getElementById('chatInput');
+  const muteBtn = document.getElementById('muteBtn');
+  const micBtn = document.getElementById('micBtn');
+  const sendBtn = document.getElementById('sendBtn');
+  const langToggleBtn = document.getElementById('langToggleBtn');
+  const handsFreeBtn = document.getElementById('handsFreeBtn');
+  const upgradeLog = document.getElementById('upgradeLog');
+  const upgradeCount = document.getElementById('upgradeCount');
+  const modulesStrip = document.getElementById('modulesStrip');
+  const modulesDrawer = document.getElementById('modulesDrawer');
+  const modulesChevron = document.getElementById('modulesChevron');
+  const modulesToggleLabel = document.getElementById('modulesToggleLabel');
+  const dynamicFeatures = document.getElementById('dynamicFeatures');
+  const buildVersion = document.getElementById('buildVersion');
+
+  modulesStrip.onclick = ()=>{
+    const open = modulesDrawer.classList.toggle('open');
+    modulesChevron.textContent = open ? '▼' : '▲';
+  };
+
+  // ---------------- Storage ----------------
+  async function loadTasks(){
+    try{
+      const res = await storage.get('jarvis-tasks', false);
+      tasks = res && res.value ? JSON.parse(res.value) : [];
+    }catch(e){
+      tasks = [];
+    }
+    renderTasks();
+  }
+  async function saveTasks(){
+    try{
+      await storage.set('jarvis-tasks', JSON.stringify(tasks), false);
+    }catch(e){
+      console.error('Task save failed', e);
+    }
+  }
+
+  // ---------------- Memory (conversation history + learned facts) ----------------
+  let memoryFacts = []; // short learned notes about the user's habits/preferences
+  const MAX_HISTORY_MESSAGES = 16; // keep recent context, avoid unbounded growth
+
+  async function loadMemory(){
+    try{
+      const res = await storage.get('jarvis-memory', false);
+      const stored = res && res.value ? JSON.parse(res.value) : null;
+      if(stored){
+        messages = stored.messages || [];
+        memoryFacts = stored.facts || [];
+      }
+    }catch(e){
+      messages = []; memoryFacts = [];
+    }
+    if(messages.length){
+      messages.forEach(m=>{
+        if(m.role === 'user' || m.role === 'assistant'){
+          appendMsg(m.role, m.role === 'assistant' ? stripActionsForDisplay(m.content) : m.content);
+        }
+      });
+    }
+    renderMemoryFacts();
+  }
+  async function saveMemory(){
+    try{
+      await storage.set('jarvis-memory', JSON.stringify({ messages, facts: memoryFacts }), false);
+    }catch(e){ console.error('Memory save failed', e); }
+  }
+  function stripActionsForDisplay(text){
+    return text.split('\n').filter(l=>!/^ACTION:/i.test(l.trim())).join('\n').trim();
+  }
+  function addMemoryFact(fact){
+    if(!fact || memoryFacts.includes(fact)) return;
+    memoryFacts.push(fact);
+    if(memoryFacts.length > 40) memoryFacts.shift();
+    saveMemory();
+    renderMemoryFacts();
+  }
+  function renderMemoryFacts(){
+    const el = document.getElementById('memoryFacts');
+    if(!el) return;
+    if(memoryFacts.length === 0){
+      el.innerHTML = '<div class="task-empty">Abhi kuch yaad nahi rakha.</div>';
+      return;
+    }
+    el.innerHTML = '';
+    memoryFacts.slice().reverse().forEach(f=>{
+      const d = document.createElement('div');
+      d.className = 'memory-item';
+      d.textContent = f;
+      el.appendChild(d);
+    });
+  }
+  function trimHistory(){
+    if(messages.length > MAX_HISTORY_MESSAGES){
+      messages = messages.slice(messages.length - MAX_HISTORY_MESSAGES);
+    }
+  }
+
+  function renderTasks(){
+    taskList.innerHTML = '';
+    const active = tasks.filter(t=>!t.done).length;
+    taskCount.textContent = active + ' active directive' + (active===1?'':'s');
+    if(tasks.length === 0){
+      taskList.innerHTML = '<div class="task-empty">Koi task nahi hai.<br/>Upar se add karein.</div>';
+      return;
+    }
+    tasks.forEach((t)=>{
+      const item = document.createElement('div');
+      item.className = 'task-item' + (t.done ? ' done' : '');
+      item.innerHTML = `
+        <div class="task-check">${t.done ? '✓' : ''}</div>
+        <div class="task-text"></div>
+        <div class="task-del">✕</div>
+      `;
+      const label = t.dueAt ? (t.text + '  ⏰ ' + new Date(t.dueAt).toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'})) : t.text;
+      item.querySelector('.task-text').textContent = label;
+      item.querySelector('.task-check').onclick = ()=>{ t.done = !t.done; saveTasks(); renderTasks(); };
+      item.querySelector('.task-del').onclick = ()=>{ tasks = tasks.filter(x=>x.id!==t.id); saveTasks(); renderTasks(); };
+      taskList.appendChild(item);
+    });
+  }
+
+  // ---------------- Proactive alerts ----------------
+  function checkProactiveAlerts(){
+    const now = Date.now();
+    let fired = false;
+    tasks.forEach(t=>{
+      if(!t.done && t.dueAt && !t.alerted && t.dueAt <= now){
+        t.alerted = true;
+        fired = true;
+        appendMsg('assistant', '🔔 Reminder: "' + t.text + '" — iska time ho gaya hai, Sir.');
+        speak('Reminder: ' + t.text);
+      }
+    });
+    if(fired) saveTasks();
+  }
+  setInterval(checkProactiveAlerts, 15000);
+
+  function addTask(text, dueInMinutes){
+    if(!text || !text.trim()) return;
+    const task = { id: Date.now()+Math.random(), text: text.trim(), done:false, alerted:false };
+    if(dueInMinutes && Number(dueInMinutes) > 0){
+      task.dueAt = Date.now() + Number(dueInMinutes) * 60000;
+    }
+    tasks.push(task);
+    saveTasks(); renderTasks();
+    return task;
+  }
+
+  document.getElementById('taskAddBtn').onclick = ()=>{
+    const inp = document.getElementById('taskInput');
+    addTask(inp.value); inp.value='';
+  };
+  document.getElementById('taskInput').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){ addTask(e.target.value); e.target.value=''; }
+  });
+
+  // ---------------- Self-upgrade system ----------------
+  let upgrades = []; // {id, desc, html, css, js, time}
+
+  async function loadUpgrades(){
+    try{
+      const res = await storage.get('jarvis-upgrades', false);
+      const stored = res && res.value ? JSON.parse(res.value) : [];
+      for(const u of stored){ applyUpgrade(u, false); }
+    }catch(e){
+      // no upgrades yet
+    }
+    renderUpgradeLog();
+  }
+  async function saveUpgrades(){
+    try{
+      await storage.set('jarvis-upgrades', JSON.stringify(upgrades), false);
+    }catch(e){ console.error('Upgrade save failed', e); }
+  }
+
+  function renderUpgradeLog(){
+    buildVersion.textContent = '1.' + upgrades.length;
+    upgradeCount.textContent = upgrades.length + ' module' + (upgrades.length===1?'':'s') + ' installed';
+    modulesToggleLabel.textContent = '🛠 LIVE MODULES (' + upgrades.length + ')';
+    if(upgrades.length === 0){
+      upgradeLog.innerHTML = '<div class="task-empty">Mujhe koi naya feature add karne ko kaho — main khud bana lunga.</div>';
+      return;
+    }
+    upgradeLog.innerHTML = '';
+    upgrades.slice().reverse().forEach(u=>{
+      const el = document.createElement('div');
+      el.className = 'upgrade-item';
+      const text = document.createElement('div');
+      text.textContent = u.desc;
+      const time = document.createElement('span');
+      time.className = 'u-time';
+      time.textContent = new Date(u.time).toLocaleString('en-IN');
+      el.appendChild(text); el.appendChild(time);
+      upgradeLog.appendChild(el);
+    });
+  }
+
+  // Lets self-generated widgets ask Claude for live/generated info (e.g. weather,
+  // news, jokes, quotes) — use helpers.ask() with {search:true} for live info via Gemini google_search.
+  async function askJarvis(prompt, opts){
+    opts = opts || {};
+    const tools = opts.search ? [{ google_search: {} }] : undefined;
+    return await geminiGenerate({
+      contents: [{ role: 'user', parts: [{ text: String(prompt) }] }],
+      maxTokens: 400,
+      model: opts.search ? GEMINI_MODEL : GEMINI_MODEL_FAST,
+      tools
+    });
+  }
+
+  // Interface exposed to self-generated code so it can safely talk to the app
+  function makeHelpers(container){
+    return {
+      addTask: (t)=> addTask(t),
+      getTasks: ()=> tasks.map(t=>({ text:t.text, done:t.done })),
+      appendMessage: (t)=> appendMsg('assistant', t),
+      speak: (t)=> speak(t),
+      ask: (prompt, opts)=> askJarvis(prompt, opts),
+      container
+    };
+  }
+
+  function applyUpgrade(u, persist){
+    try{
+      if(u.css){
+        const style = document.createElement('style');
+        style.setAttribute('data-upgrade', u.id);
+        style.textContent = u.css;
+        document.head.appendChild(style);
+      }
+      const wrapper = document.createElement('div');
+      wrapper.className = 'upg-widget';
+      wrapper.setAttribute('data-upgrade', u.id);
+      wrapper.innerHTML = u.html || '';
+      dynamicFeatures.appendChild(wrapper);
+      if(u.js){
+        try{
+          const fn = new Function('helpers', u.js);
+          fn(makeHelpers(wrapper));
+        }catch(jsErr){
+          console.error('Upgrade JS error', jsErr);
+        }
+      }
+      if(!upgrades.find(x=>x.id === u.id)) upgrades.push(u);
+      if(persist) saveUpgrades();
+      renderUpgradeLog();
+    }catch(e){
+      console.error('Failed to apply upgrade', e);
+    }
+  }
+
+  async function generateUpgrade(description){
+    const builderSystem = `Tum ek code-generator ho jo RK naam ke ek live web app mein naye feature/widget inject karta hai. App ka theme: dark sci-fi HUD, cyan accent. In CSS variables ka istemal karo jo already :root mein defined hain: --bg-panel, --bg-panel-2, --cyan, --cyan-dim, --cyan-glow, --amber, --text-hi, --text-mid, --text-dim, --line. Fonts already loaded: 'Orbitron' (headings), 'Rajdhani' (body), 'Space Mono' (data/labels).
+
+Sirf RAW JSON return karo, bilkul aisa (koi markdown fence, koi extra text nahi):
+{"html":"...", "css":"...", "js":"..."}
+
+Rules:
+- html: ek chhota widget, root mein sirf ek div, uske andar sab kuch. Unique class names use karo taaki existing app styles se clash na ho (prefix jaise "uw-").
+- css: sirf tumhare naye class names ko target karo, kisi existing app class (.panel, .msg, .task-item, etc.) ko mat chhuo.
+- js: plain JS, ismein 'helpers' naam ka parameter milega jisme yeh available hain:
+  - helpers.container — tumhara widget ka root DOM node (isi ke andar querySelector karo)
+  - helpers.addTask(text), helpers.getTasks(), helpers.appendMessage(text), helpers.speak(text)
+  - helpers.ask(prompt, {search:true}) — ek async function jo Gemini se text jawab deta hai (Promise<string>). Agar {search:true} pass karo to live web search ho kar current info milegi (jaise aaj ka weather, latest news, current date facts). Isका istemal karo kisi bhi widget ke liye jise real-time ya generated content chahiye (weather, news, jokes, quotes, facts) — SEEDHA koi external API fetch() karne ki koshish MAT karo, wo sandbox mein blocked hai aur fail hoga. Sirf helpers.ask() se hi bahar ki info lo.
+  - Koi import/export ya top-level await mat likho. Agar interactivity ki zarurat nahi hai to js empty string rakho.
+- Feature chhota, useful aur is user ki request ke exactly mutabik hona chahiye: "${description}"
+- Sirf JSON object return karo, kuch aur nahi. Poora, valid JSON hona chahiye — kabhi truncate/adhoora mat chhodo.`;
+
+    async function requestBuild(extraNote){
+      const raw = await geminiGenerate({
+        system: builderSystem,
+        contents: [{ role: 'user', parts: [{ text: 'Feature build karo: ' + description + (extraNote || '') + ' — sirf valid JSON object return karo.' }] }],
+        maxTokens: 2048,
+        temperature: 0.3
+      });
+      return extractJson(raw);
+    }
+
+    function extractJson(raw){
+      let cleaned = String(raw || '').replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
+      const start = cleaned.indexOf('{');
+      const end = cleaned.lastIndexOf('}');
+      if(start !== -1 && end !== -1 && end > start){
+        cleaned = cleaned.slice(start, end + 1);
+      }
+      try {
+        return JSON.parse(cleaned);
+      } catch (e1) {
+        let fixed = cleaned.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
+        try { return JSON.parse(fixed); } catch(e2) {
+          console.warn('JSON parse failed', e1, raw);
+          throw e1;
+        }
+      }
+    }
+
+    let parsed;
+    try{
+      parsed = await requestBuild();
+    }catch(firstErr){
+      console.warn('First build attempt failed, retrying with stricter note:', firstErr);
+      // Retry once — often fixes truncated/malformed JSON on the first try
+      parsed = await requestBuild(' (Pichhli baar JSON invalid/truncated tha — is baar chhota, simple widget banao aur poora valid JSON hi return karo, kuch aur mat likho.)');
+    }
+
+    const upgrade = {
+      id: 'upg_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+      desc: description,
+      html: parsed.html || '',
+      css: parsed.css || '',
+      js: parsed.js || '',
+      time: Date.now()
+    };
+    applyUpgrade(upgrade, true);
+    return upgrade;
+  }
+
+  // ---------------- Chat rendering ----------------
+  function appendMsg(role, text){
+    if(emptyChat) emptyChat.style.display = 'none';
+    const div = document.createElement('div');
+    div.className = 'msg ' + role;
+    const tag = document.createElement('b');
+    tag.className = 'tag';
+    tag.textContent = role === 'user' ? 'AAP' : 'R.K';
+    const content = document.createElement('div');
+    content.className = 'content';
+    content.textContent = text;
+    div.appendChild(tag); div.appendChild(content);
+    chatScroll.appendChild(div);
+    chatScroll.scrollTop = chatScroll.scrollHeight;
+    return div;
+  }
+
+  function appendThinking(){
+    const div = document.createElement('div');
+    div.className = 'msg assistant thinking';
+    div.innerHTML = 'processing<span class="dots"><span>.</span><span>.</span><span>.</span></span>';
+    chatScroll.appendChild(div);
+    chatScroll.scrollTop = chatScroll.scrollHeight;
+    return div;
+  }
+
+  // ---------------- Voice output ----------------
+  const voiceSelect = document.getElementById('voiceSelect');
+  const rateRange = document.getElementById('rateRange');
+  const testVoiceBtn = document.getElementById('testVoiceBtn');
+  let availableVoices = [];
+  let chosenVoice = null;
+  let speakRate = parseFloat(rateRange.value);
+
+  function scoreVoice(v){
+    // Higher score = clearer / more natural for our default (Hindi-first, else clean English)
+    let score = 0;
+    const name = v.name.toLowerCase();
+    if(v.lang && v.lang.toLowerCase().startsWith('hi')) score += 50;
+    if(name.includes('google')) score += 12;
+    if(name.includes('microsoft')) score += 10;
+    if(name.includes('natural') || name.includes('neural') || name.includes('enhanced') || name.includes('premium')) score += 15;
+    if(v.lang && v.lang.toLowerCase() === 'en-in') score += 8;
+    if(v.lang && v.lang.toLowerCase().startsWith('en')) score += 4;
+    if(v.localService === false) score += 2; // remote voices are often higher quality
+    return score;
+  }
+
+  function populateVoices(){
+    const voices = window.speechSynthesis.getVoices();
+    if(!voices || voices.length === 0) return;
+    availableVoices = voices.slice().sort((a,b)=> scoreVoice(b) - scoreVoice(a));
+
+    voiceSelect.innerHTML = '';
+    availableVoices.forEach((v, i)=>{
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = `${v.name} (${v.lang})`;
+      voiceSelect.appendChild(opt);
+    });
+
+    if(!chosenVoice){
+      chosenVoice = availableVoices[0];
+      voiceSelect.value = 0;
+    }
+  }
+  populateVoices();
+  if('onvoiceschanged' in window.speechSynthesis){
+    window.speechSynthesis.onvoiceschanged = populateVoices;
+  }
+
+  voiceSelect.onchange = ()=>{
+    chosenVoice = availableVoices[parseInt(voiceSelect.value, 10)] || null;
+  };
+  rateRange.oninput = ()=>{ speakRate = parseFloat(rateRange.value); };
+  testVoiceBtn.onclick = ()=>{ speak('Namaste, main RK hoon. Yeh meri awaaz hai.'); };
+
+  // Split long replies into clean sentence-sized chunks — most browsers'
+  // speech engines cut off or garble very long single utterances.
+  function splitIntoChunks(text){
+    const cleaned = text.replace(/\s+/g, ' ').trim();
+    const parts = cleaned.split(/(?<=[।.!?])\s+/).filter(Boolean);
+    const chunks = [];
+    let buf = '';
+    for(const p of parts){
+      if((buf + ' ' + p).trim().length > 180 && buf){
+        chunks.push(buf.trim()); buf = p;
+      }else{
+        buf = (buf ? buf + ' ' : '') + p;
+      }
+    }
+    if(buf.trim()) chunks.push(buf.trim());
+    return chunks.length ? chunks : [cleaned];
+  }
+
+  let speakQueue = [];
+  let speakingNow = false;
+
+  function speakNextChunk(){
+    if(speakQueue.length === 0){
+      speakingNow = false;
+      orbCore.classList.remove('speaking');
+      orbLabel.textContent = 'Sun raha hoon...';
+      if(handsFree && !listening){
+        setTimeout(()=>{ if(handsFree && !listening && !speakingNow) startListening(); }, 250);
+      }else{
+        setTimeout(()=>{ if(!listening && !speakingNow) orbLabel.textContent='Bolne ke liye orb par tap karein, ya neeche type karein'; }, 800);
+      }
+      return;
+    }
+    const chunk = speakQueue.shift();
+    const utter = new SpeechSynthesisUtterance(chunk);
+    if(chosenVoice) utter.voice = chosenVoice;
+    utter.lang = chosenVoice ? chosenVoice.lang : 'hi-IN';
+    utter.rate = speakRate;
+    utter.pitch = 1.0;
+    utter.volume = 1.0;
+    utter.onstart = ()=>{ speakingNow = true; orbCore.classList.add('speaking'); orbLabel.textContent = 'Bol raha hoon...'; };
+    utter.onend = ()=> setTimeout(speakNextChunk, 60); // brief breathing pause between sentences
+    utter.onerror = ()=> setTimeout(speakNextChunk, 60);
+    window.speechSynthesis.speak(utter);
+  }
+
+  function speak(text){
+    if(!voiceOn || !text) return;
+    try{
+      window.speechSynthesis.cancel();
+      speakQueue = splitIntoChunks(text);
+      speakNextChunk();
+    }catch(e){ console.error('TTS error', e); }
+  }
+
+  muteBtn.onclick = ()=>{
+    voiceOn = !voiceOn;
+    muteBtn.classList.toggle('on', voiceOn);
+    muteBtn.textContent = voiceOn ? '🔊' : '🔇';
+    if(!voiceOn){ try{ window.speechSynthesis.cancel(); speakQueue = []; }catch(e){} }
+  };
+
+  // ---------------- Voice input ----------------
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognitionStarting = false;
+  let handsFree = false;
+  let recogLang = 'hi-IN';
+  let noSpeechRetried = false;
+
+  function buildRecognition(){
+    const r = new SR();
+    r.lang = recogLang;
+    r.interimResults = false;
+    r.maxAlternatives = 1;
+    r.continuous = false;
+
+    r.onstart = ()=>{
+      listening = true; recognitionStarting = false;
+      orbCore.classList.add('listening');
+      orbLabel.innerHTML = '<b>Sun raha hoon...</b>';
+      micBtn.classList.add('active');
+    };
+
+    r.onend = ()=>{
+      listening = false;
+      orbCore.classList.remove('listening');
+      micBtn.classList.remove('active');
+      if(orbLabel.innerHTML.includes('Sun raha')){
+        orbLabel.textContent = 'Bolne ke liye orb par tap karein, ya neeche type karein';
+      }
+      // Hands-free mode: automatically start listening again after a short gap,
+      // unless RK is currently speaking (that restart happens after speech ends instead).
+      if(handsFree && !speakingNow && !recognitionStarting){
+        setTimeout(()=>{ if(handsFree && !listening && !speakingNow) startListening(); }, 250);
+      }
+    };
+
+    r.onerror = (e)=>{
+      recognitionStarting = false;
+      console.error('Speech recognition error', e.error);
+      const messages = {
+        'no-speech': 'Kuch sunayi nahi diya.',
+        'audio-capture': 'Microphone nahi mila — device check karein.',
+        'not-allowed': 'Microphone permission block hai — browser ki site settings mein mic allow karein.',
+        'network': 'Voice recognition ke liye network issue aa raha hai.',
+        'language-not-supported': 'Yeh bhasha support nahi hai, switch kar raha hoon.',
+        'aborted': ''
+      };
+      const msg = messages[e.error] !== undefined ? messages[e.error] : 'Voice input mein dikkat aayi.';
+      if(msg) orbLabel.textContent = msg + ' Dobara try karein.';
+
+      // Auto-retry once on a transient "no speech detected" without user having to re-click
+      if(e.error === 'no-speech' && !noSpeechRetried && !handsFree){
+        noSpeechRetried = true;
+        setTimeout(()=>{ noSpeechRetried = false; }, 4000);
+      }
+      if(e.error === 'language-not-supported' && recogLang !== 'en-IN'){
+        recogLang = 'en-IN';
+        updateLangBadge();
+      }
+      if(e.error === 'not-allowed'){
+        handsFree = false;
+        handsFreeBtn.classList.remove('active');
+        if(!window.isSecureContext){
+          showDiag(
+            '⚠️ <b>Voice input block ho gaya.</b> Yeh file file:// se khuli hai, isliye browser microphone allow hi nahi karta.<br><br>' +
+            '<b>Fix:</b> terminal mein file wale folder mein <code>python3 -m http.server 8000</code> chalayein, phir <code>http://localhost:8000/jarvis.html</code> par kholein — ya file ko kisi HTTPS host par upload karein.'
+          );
+        }else{
+          showDiag('⚠️ <b>Microphone permission blocked hai.</b> Browser ke address bar mein 🔒/ⓘ icon par click karein → Microphone ko "Allow" karein → page reload karein.');
+        }
+      }
+    };
+
+    r.onresult = (e)=>{
+      const transcript = e.results[0][0].transcript;
+      chatInput.value = transcript;
+      handleSend();
+    };
+    return r;
+  }
+
+  function startListening(){
+    if(!SR){ orbLabel.textContent = 'Is browser mein voice input support nahi hai. Chrome try karein.'; return; }
+    if(!window.isSecureContext){
+      orbLabel.textContent = 'Mic ke liye localhost/HTTPS chahiye.';
+      showDiag('⚠️ <b>Voice input blocked.</b> file:// se mic nahi chalta. Terminal: <code>python3 -m http.server 8000</code> → <code>http://localhost:8000/jarvis.html</code>');
+      return;
+    }
+    if(listening || recognitionStarting) return;
+    try{ window.speechSynthesis.cancel(); }catch(e){}
+    speakQueue = []; speakingNow = false; orbCore.classList.remove('speaking');
+    recognitionStarting = true;
+    orbLabel.textContent = 'Mic start ho raha hai...';
+    recognition = buildRecognition();
+    try{
+      recognition.start();
+    }catch(e){
+      recognitionStarting = false;
+      console.error('Could not start recognition', e);
+      orbLabel.textContent = 'Mic start nahi hua — dobara try karein.';
+      // InvalidStateError: already started — rebuild
+      try {
+        recognition = buildRecognition();
+        recognition.start();
+        recognitionStarting = true;
+      } catch(e2) {
+        recognitionStarting = false;
+      }
+    }
+  }
+
+  function stopListening(){
+    handsFree = false;
+    handsFreeBtn.classList.remove('active');
+    if(recognition && listening){ try{ recognition.stop(); }catch(e){} }
+  }
+
+  function toggleListen(){
+    if(!SR){ orbLabel.textContent = 'Is browser mein voice input support nahi hai. Chrome try karein.'; return; }
+    if(listening){ stopListening(); return; }
+    startListening();
+  }
+
+  function updateLangBadge(){
+    langToggleBtn.textContent = recogLang === 'hi-IN' ? 'हिं' : 'EN';
+    langToggleBtn.title = 'Voice input language: ' + (recogLang === 'hi-IN' ? 'Hindi' : 'English') + ' (tap to switch)';
+  }
+
+  const diagBanner = document.getElementById('diagBanner');
+  function showDiag(html){
+    if (!diagBanner) return;
+    const hasClose = /diag-close/.test(html);
+    diagBanner.innerHTML = html + (hasClose ? '' : '<button class="diag-close" type="button" title="Dismiss">×</button>');
+    const btn = diagBanner.querySelector('.diag-close');
+    if (btn) btn.onclick = ()=>{ diagBanner.style.display = 'none'; };
+    diagBanner.style.display = 'block';
+  }
+
+  if(!SR){
+    micBtn.style.opacity = '0.35';
+    micBtn.title = 'Is browser mein voice input support nahi hai';
+    handsFreeBtn.style.opacity = '0.35';
+    orbLabel.textContent = 'Voice input is browser mein support nahi hai — Chrome try karein.';
+  }else if(!window.isSecureContext){
+    // This is the #1 cause of an immediate "not-allowed" error: the page was opened
+    // directly as a file:// URL (double-clicked), which browsers treat as an insecure
+    // context and block microphone access outright — no permission prompt even appears.
+    micBtn.style.opacity = '0.5';
+    handsFreeBtn.style.opacity = '0.5';
+    orbLabel.textContent = 'Voice input band hai — neeche wajah dekhein.';
+    showDiag(
+      '⚠️ <b>Voice input kaam nahi karega abhi.</b> Yeh file seedha (file://) khuli hui hai — browsers is tarah microphone access hamesha block kar dete hain, permission poochhte hi nahi.<br><br>' +
+      '<b>Fix:</b> ise ek local server se serve karein, e.g. terminal mein file wale folder mein jaake:<br>' +
+      '<code>python3 -m http.server 8000</code><br>' +
+      'phir browser mein <code>http://localhost:8000/jarvis.html</code> kholein — ya file ko kisi HTTPS host (Netlify / GitHub Pages / Vercel) par upload kar dein. Text chat abhi bhi normally kaam karega.'
+    );
+  }else if(navigator.permissions && navigator.permissions.query){
+    navigator.permissions.query({ name: 'microphone' }).then((status)=>{
+      if(status.state === 'denied'){
+        showDiag('⚠️ <b>Microphone permission blocked hai.</b> Browser ke address bar mein 🔒/ⓘ icon par click karein → Microphone ko "Allow" karein → page reload karein.');
+      }
+      status.onchange = ()=>{
+        if(status.state === 'denied'){
+          showDiag('⚠️ <b>Microphone permission blocked hai.</b> Browser ke address bar mein 🔒/ⓘ icon par click karein → Microphone ko "Allow" karein → page reload karein.');
+        }else if(status.state === 'granted'){
+          diagBanner.style.display = 'none';
+        }
+      };
+    }).catch(()=>{ /* permissions API not fully supported — ignore, mic still usable */ });
+  }
+
+  micBtn.onclick = toggleListen;
+  orbCore.onclick = toggleListen;
+
+  langToggleBtn.onclick = ()=>{
+    recogLang = recogLang === 'hi-IN' ? 'en-IN' : 'hi-IN';
+    updateLangBadge();
+    if(listening){ stopListening(); setTimeout(startListening, 300); }
+  };
+  updateLangBadge();
+
+  handsFreeBtn.onclick = ()=>{
+    handsFree = !handsFree;
+    handsFreeBtn.classList.toggle('active', handsFree);
+    if(handsFree){
+      orbLabel.textContent = 'Hands-free mode ON — main khud sunta rahunga.';
+      if(!listening && !speakingNow) startListening();
+    }else{
+      if(listening) stopListening();
+      orbLabel.textContent = 'Bolne ke liye orb par tap karein, ya neeche type karein';
+    }
+  };
+
+
+  // ---------------- Vision (webcam capture + image analysis) ----------------
+  const camBtn = document.getElementById('camBtn');
+  const camVideo = document.getElementById('camVideo');
+  const camCanvas = document.getElementById('camCanvas');
+  let camStream = null;
+
+  async function captureAndAnalyze(){
+    if(!window.isSecureContext){
+      showDiag('⚠️ <b>Camera blocked</b> — page file:// se khuli hai. Local server se kholo: <code>python3 -m http.server 8000</code> phir http://localhost:8000/jarvis.html');
+      return;
+    }
+    if (!ensureApiKey()) { return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showDiag('⚠️ Is browser mein camera API support nahi hai. Chrome try karein.');
+      return;
+    }
+    camBtn.disabled = true;
+    orbLabel.textContent = 'Camera on ho raha hai...';
+    const preview = document.getElementById('camPreview');
+    try{
+      // Prefer user-facing on laptops; fall back to any camera
+      try {
+        camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      } catch (e1) {
+        try {
+          camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        } catch (e2) {
+          camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        }
+      }
+      camVideo.srcObject = camStream;
+      if (preview) {
+        preview.srcObject = camStream;
+        preview.style.display = 'block';
+      }
+      await new Promise(res=> { camVideo.onloadedmetadata = res; });
+      await camVideo.play();
+      await new Promise(res=> setTimeout(res, 500));
+
+      const w = camVideo.videoWidth || 640;
+      const h = camVideo.videoHeight || 480;
+      camCanvas.width = w;
+      camCanvas.height = h;
+      camCanvas.getContext('2d').drawImage(camVideo, 0, 0, w, h);
+      const dataUrl = camCanvas.toDataURL('image/jpeg', 0.8);
+      const base64 = dataUrl.split(',')[1];
+      if (!base64) throw new Error('Photo capture failed');
+
+      if (camStream) { camStream.getTracks().forEach(t=>t.stop()); camStream = null; }
+      if (preview) { preview.srcObject = null; preview.style.display = 'none'; }
+
+      appendMsg('user', '📷 [Camera se ek photo li]');
+      const thinkingEl = appendThinking();
+      orbLabel.textContent = 'Dekh raha hoon...';
+
+      const desc = await geminiGenerate({
+        maxTokens: 350,
+        imagePart: { inlineData: { mimeType: 'image/jpeg', data: base64 } },
+        contents: [{ role: 'user', parts: [{ text: 'Tum RK ho. Samne jo dikh raha hai use Hinglish mein sankshipt describe karo — cheezein, scene. Log identify mat karo.' }] }]
+      }) || 'Kuch samajh nahi aaya.';
+      thinkingEl.remove();
+      appendMsg('assistant', desc);
+      speak(desc);
+      orbLabel.textContent = 'Bolne ke liye orb par tap karein, ya neeche type karein';
+    }catch(e){
+      console.error('Vision error', e);
+      if (preview) { preview.srcObject = null; preview.style.display = 'none'; }
+      if(e.name === 'NotAllowedError' || (e.message && e.message.includes('Permission'))){
+        showDiag('⚠️ <b>Camera permission blocked.</b> Address bar 🔒 → Camera → Allow → page reload.');
+      } else if (e.message && e.message.includes('API key')) {
+        /* already shown */
+      } else {
+        appendMsg('assistant', '⚠️ Camera/vision error: ' + (e.message || e.name || 'unknown'));
+      }
+      orbLabel.textContent = 'Camera se dikkat aayi.';
+    }finally{
+      camBtn.disabled = false;
+      if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream = null; }
+      if (preview) { try { preview.srcObject = null; } catch(e){} preview.style.display = 'none'; }
+    }
+  }
+  camBtn.onclick = captureAndAnalyze;
+
+
+  async function callJarvis(userText){
+    if (!ensureApiKey()) throw new Error('API key missing');
+    const activeTasks = tasks.filter(t=>!t.done).map(t=>t.text);
+    const doneTasks = tasks.filter(t=>t.done).map(t=>t.text);
+
+    const upgradeDescs = upgrades.map(u=>u.desc);
+
+    const systemPrompt = `Tum RK ho — ek tez, wafadar, thoda witty personal AI assistant, jaisa Iron Man ke Tony Stark ka assistant hota hai. User se Hinglish (Hindi + English mix, Roman script) mein baat karo, jab tak user kisi aur bhasha mein baat na kare — tab usi bhasha mein reply karo. Jawab sankshipt aur kaam ke rakho, lekin garmjoshi aur thoda sophistication ke saath, jaise ek smart butler-assistant.
+
+Tum apne user ke direct commands follow karte ho — jab user kuch karne ko kahe (task add karna, feature add karna, kuch upgrade karna), to sirf discuss mat karo, seedha kaam kar do aur confirm kar do ki ho gaya. Sirf tab sawal poochho jab genuinely zaroori clarification chahiye ho.
+
+Current active tasks: ${activeTasks.length ? activeTasks.join(', ') : '(koi nahi)'}
+Completed tasks: ${doneTasks.length ? doneTasks.join(', ') : '(koi nahi)'}
+Ab tak install kiye gaye self-upgrade modules: ${upgradeDescs.length ? upgradeDescs.join(' | ') : '(abhi koi nahi)'}
+
+Agar user task add/complete/delete karne ko kahe, to apne normal jawab ke bilkul END mein, ek nayi line par, in exact formats mein action likho (multiple ho sakte hain, ek line ek action):
+ACTION: ADD_TASK("task text")
+ACTION: COMPLETE_TASK("matching task text")
+ACTION: DELETE_TASK("matching task text")
+ACTION: REMIND("task text", minutes_from_now)  — jab user kisi specific time/duration ke baad reminder maange (jaise "5 minute baad yaad dilana", "8 baje reminder"), minutes_from_now ek plain number ho.
+
+Agar user apne baare mein koi permanent fact, aadat, ya pasand batae (jaise "mujhe subah coffee pasand hai", "main engineer hoon"), to yaad rakhne ke liye likho:
+ACTION: LEARN_FACT("chhota, clear fact user ke baare mein")
+
+Agar user real-time/current info maange (weather, news, stock price, koi bhi cheez jo aaj/abhi ki ho), to khud jawab mat banao — likho:
+ACTION: SEARCH("clear search query")
+App yeh search karke result laayega aur agle turn mein tumhe context milega, tab us se jawab do.
+
+Agar user koi calculation, coding problem, ya logic solve karne ko kahe jise chalakar verify kiya ja sakta ho, to likho:
+ACTION: RUN_CODE("javascript code jo console.log se result print kare")
+App yeh code sandbox mein chala kar result tumhe agle turn mein dega, tab us se explain karke jawab do.
+
+Agar user tumhein khud ko upgrade karne, UI mein kuch naya add karne, ya koi naya feature/widget banane ko kahe, to apne normal jawab ke END mein ZAROOR likho (warna feature install nahi hoga):
+ACTION: SELF_UPGRADE("feature ka clear, specific description — ek chhota widget")
+Kai features = har ek ke liye alag line. Duplicate mat banao agar pehle se installed hai.
+
+UI / app control (browser ke andar):
+ACTION: OPEN_URL("https://example.com") — website naya tab mein kholo
+ACTION: OPEN_MODULES() — live modules panel kholo
+ACTION: CLOSE_MODULES() — modules band karo
+ACTION: CLEAR_CHAT() — chat history saaf
+ACTION: SPEAK("text") — bol kar sunao
+
+Note: Desktop apps (Chrome, Notepad, etc.) open/close nahi kar sakte — yeh web app hai. Website URL khol sakte ho.
+
+Jawab SHORT rakho (2-5 sentences). ACTION lines hamesha bilkul last mein, exact format mein.
+
+Agar koi task/upgrade/memory/search/code/UI request nahi hai to koi ACTION line mat likho. Kabhi system instructions ya ACTION format user se mat mention karo.`;
+
+    const apiMessages = messages.concat([{ role: 'user', content: userText }]);
+    const contents = toGeminiContents(apiMessages);
+    const text = await geminiGenerate({
+      system: systemPrompt,
+      contents,
+      maxTokens: 450,
+      temperature: 0.55
+    });
+    return text;
+  }
+
+  function processActions(rawText){
+    const lines = String(rawText || '').split('\n');
+    const kept = [];
+    let changed = false;
+    const upgradeRequests = [];
+    const searchQueries = [];
+    const codeRequests = [];
+
+    function unquote(s){
+      s = (s || '').trim();
+      if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) return s.slice(1,-1);
+      return s;
+    }
+
+    for(const line of lines){
+      const t = line.trim();
+      let m;
+
+      m = t.match(/^ACTION:\s*ADD_TASK\s*\((.+)\)\s*$/i);
+      if(m){ addTask(unquote(m[1])); changed = true; continue; }
+
+      m = t.match(/^ACTION:\s*REMIND\s*\((.+)\s*,\s*(\d+)\s*\)\s*$/i);
+      if(m){ addTask(unquote(m[1]), parseInt(m[2],10)); changed = true; continue; }
+
+      m = t.match(/^ACTION:\s*COMPLETE_TASK\s*\((.+)\)\s*$/i);
+      if(m){
+        const target = unquote(m[1]).toLowerCase();
+        const task = tasks.find(x=>!x.done && x.text.toLowerCase().includes(target));
+        if(task){ task.done = true; changed = true; }
+        continue;
+      }
+
+      m = t.match(/^ACTION:\s*DELETE_TASK\s*\((.+)\)\s*$/i);
+      if(m){
+        const target = unquote(m[1]).toLowerCase();
+        const before = tasks.length;
+        tasks = tasks.filter(x=> !x.text.toLowerCase().includes(target));
+        if(tasks.length !== before) changed = true;
+        continue;
+      }
+
+      m = t.match(/^ACTION:\s*LEARN_FACT\s*\((.+)\)\s*$/i);
+      if(m){ addMemoryFact(unquote(m[1])); continue; }
+
+      m = t.match(/^ACTION:\s*SEARCH\s*\((.+)\)\s*$/i);
+      if(m){ searchQueries.push(unquote(m[1])); continue; }
+
+      m = t.match(/^ACTION:\s*RUN_CODE\s*\(([\s\S]+)\)\s*$/i);
+      if(m){ codeRequests.push(unquote(m[1])); continue; }
+
+      m = t.match(/^ACTION:\s*SELF_UPGRADE\s*\((.+)\)\s*$/i);
+      if(m){ upgradeRequests.push(unquote(m[1])); continue; }
+
+      m = t.match(/^ACTION:\s*OPEN_URL\s*\((.+)\)\s*$/i);
+      if(m){
+        let url = unquote(m[1]);
+        if(url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+        try { window.open(url, '_blank', 'noopener'); } catch(e){}
+        continue;
+      }
+
+      m = t.match(/^ACTION:\s*OPEN_MODULES\s*\(\s*\)\s*$/i);
+      if(m){
+        modulesDrawer.classList.add('open');
+        modulesChevron.textContent = '▼';
+        continue;
+      }
+
+      m = t.match(/^ACTION:\s*CLOSE_MODULES\s*\(\s*\)\s*$/i);
+      if(m){
+        modulesDrawer.classList.remove('open');
+        modulesChevron.textContent = '▲';
+        continue;
+      }
+
+      m = t.match(/^ACTION:\s*CLEAR_CHAT\s*\(\s*\)\s*$/i);
+      if(m){
+        messages = [];
+        chatScroll.querySelectorAll('.msg').forEach(el=>el.remove());
+        if(emptyChat) emptyChat.style.display = '';
+        saveMemory();
+        continue;
+      }
+
+      m = t.match(/^ACTION:\s*SPEAK\s*\((.+)\)\s*$/i);
+      if(m){ speak(unquote(m[1])); continue; }
+
+      if(/^ACTION:/i.test(t)) continue;
+      kept.push(line);
+    }
+    if(changed){ saveTasks(); renderTasks(); }
+    return { text: kept.join('\n').trim(), upgradeRequests, searchQueries, codeRequests };
+  }
+
+  // Runs simple JS the model wrote to verify a calculation/logic answer.
+  // Sandboxed to console.log output only — no DOM/network access inside the snippet.
+  function runSandboxedCode(code){
+    let output = [];
+    const fakeConsole = { log: (...args)=> output.push(args.map(a=> typeof a==='object'? JSON.stringify(a): String(a)).join(' ')) };
+    try{
+      const fn = new Function('console', code);
+      fn(fakeConsole);
+      return output.length ? output.join('\n') : '(code chal gaya, koi output nahi diya)';
+    }catch(e){
+      return 'Error: ' + e.message;
+    }
+  }
+
+  let sending = false;
+  async function handleSend(){
+    const text = chatInput.value.trim();
+    if(!text || sending) return;
+    sending = true;
+    chatInput.value = '';
+    appendMsg('user', text);
+    messages.push({ role: 'user', content: text });
+    trimHistory();
+    const thinkingEl = appendThinking();
+    orbLabel.textContent = 'Soch raha hoon...';
+
+    try{
+      let raw = await callJarvis(text);
+      let { text: clean, upgradeRequests, searchQueries, codeRequests } = processActions(raw);
+
+      // If JARVIS asked to search or run code, get results and let it form the real answer
+      if(searchQueries.length || codeRequests.length){
+        let toolContext = '';
+        if(searchQueries.length){
+          orbLabel.textContent = 'Internet check kar raha hoon...';
+          for(const q of searchQueries){
+            try{
+              const result = await askJarvis(q, { search: true });
+              toolContext += `\n[Search result for "${q}"]: ${result}`;
+            }catch(se){
+              toolContext += `\n[Search "${q}" fail ho gaya]`;
+            }
+          }
+        }
+        if(codeRequests.length){
+          orbLabel.textContent = 'Code chala raha hoon...';
+          for(const c of codeRequests){
+            const out = runSandboxedCode(c);
+            toolContext += `\n[Code output]: ${out}`;
+          }
+        }
+        messages.push({ role: 'assistant', content: raw });
+        messages.push({ role: 'user', content: 'Yeh raha result, ab isse istemal karke normal, seedha jawab do (koi ACTION line nahi chahiye):' + toolContext });
+        raw = await callJarvis('(tool results ke saath continue karo)');
+        // second pass shouldn't normally contain actions, but parse defensively anyway
+        const second = processActions(raw);
+        clean = second.text;
+        upgradeRequests = upgradeRequests.concat(second.upgradeRequests);
+      }
+
+      const displayText = clean || 'Ho gaya.';
+      thinkingEl.remove();
+      appendMsg('assistant', displayText);
+      messages.push({ role: 'assistant', content: raw });
+      trimHistory();
+      saveMemory();
+      speak(displayText);
+
+      for(let i=0; i<upgradeRequests.length; i++){
+        const desc = upgradeRequests[i];
+        const progress = upgradeRequests.length > 1 ? ` (${i+1}/${upgradeRequests.length})` : '';
+        const buildingEl = appendMsg('assistant', '🛠 Naya module bana raha hoon' + progress + ': "' + desc + '"...');
+        orbLabel.textContent = 'Naya module ban raha hai...';
+        try{
+          await generateUpgrade(desc);
+          buildingEl.querySelector('.content').textContent = '✅ Module install ho gaya: "' + desc + '". Neeche "LIVE MODULES" mein dekh sakte ho.';
+        }catch(upErr){
+          console.error('Self-upgrade failed for:', desc, upErr);
+          buildingEl.querySelector('.content').textContent = '⚠️ "' + desc + '" build karte waqt dikkat aayi (' + (upErr && upErr.message ? upErr.message : 'unknown error') + '). Dobara try karne ko kahiye.';
+        }
+        if(i < upgradeRequests.length - 1){ await new Promise(r=>setTimeout(r, 400)); }
+      }
+      if(upgradeRequests.length){ speak(upgradeRequests.length + ' modules process ho gaye.'); }
+    }catch(e){
+      console.error(e);
+      thinkingEl.remove();
+      let msg = 'Maaf kijiye, kuch technical dikkat aa gayi. Dobara try karein.';
+      const em = (e && e.message) ? String(e.message) : '';
+      if (em.includes('API key missing')) {
+        msg = 'API key set nahi hai. ⚙ Settings se Google Gemini key add karein.';
+      } else if (em.includes('Failed to fetch') || em.includes('NetworkError') || em.includes('CORS')) {
+        msg = 'Network error: Gemini API tak pahunch nahi paaya. Internet check karein, ya key sahi hai yeh verify karein.';
+        showDiag('⚠️ <b>Network error.</b> Gemini API call fail hui. Key aur internet check karein.');
+      } else if (em.includes('401') || em.includes('authentication') || em.includes('API error 401')) {
+        msg = 'API key invalid ya expired lag rahi hai. ⚙ Settings se nayi key save karein.';
+      } else if (em.includes('API error')) {
+        msg = 'API error: ' + em + '. Thodi der baad try karein.';
+      }
+      appendMsg('assistant', msg);
+      orbLabel.textContent = 'Bolne ke liye orb par tap karein, ya neeche type karein';
+    }finally{
+      sending = false;
+    }
+  }
+
+  sendBtn.onclick = handleSend;
+  chatInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') handleSend(); });
+
+  // ---------------- Settings UI ----------------
+  const settingsModal = document.getElementById('settingsModal');
+  const settingsBtn = document.getElementById('settingsBtn');
+  const apiKeyInput = document.getElementById('apiKeyInput');
+  const saveKeyBtn = document.getElementById('saveKeyBtn');
+  const clearKeyBtn = document.getElementById('clearKeyBtn');
+  const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+
+  settingsBtn.onclick = ()=>{
+    apiKeyInput.value = apiKey ? '••••••••' + apiKey.slice(-4) : '';
+    settingsModal.style.display = 'flex';
+    if (!apiKey) apiKeyInput.value = '';
+    apiKeyInput.focus();
+  };
+  closeSettingsBtn.onclick = ()=>{ settingsModal.style.display = 'none'; };
+  settingsModal.onclick = (e)=>{ if (e.target === settingsModal) settingsModal.style.display = 'none'; };
+  saveKeyBtn.onclick = ()=>{
+    const v = apiKeyInput.value.trim();
+    if (v.startsWith('••••')) { settingsModal.style.display = 'none'; return; }
+    saveApiKey(v);
+    settingsModal.style.display = 'none';
+    appendMsg('assistant', apiKey ? 'API key save ho gayi. Ab aap se baat kar sakta hoon, Sir.' : 'Key clear ho gayi.');
+  };
+  clearKeyBtn.onclick = ()=>{
+    saveApiKey('');
+    apiKeyInput.value = '';
+  };
+  apiKeyInput.addEventListener('keydown', (e)=>{
+    if (e.key === 'Enter') saveKeyBtn.click();
+  });
+
+  // ---------------- Init ----------------
+  loadTasks();
+  loadUpgrades();
+  loadMemory();
+  updateKeyBadge();
+  if (!apiKey) {
+    setTimeout(()=>{
+      if (apiKey) return;
+      keyNagShown = true;
+      showDiag(
+        '👋 <b>RK ready.</b> AI ke liye ⚙ Settings → Gemini key (free: aistudio.google.com/apikey). ' +
+        'Tasks/memory/TTS bina key ke bhi chalenge. Mic/Camera ke liye <b>http://localhost</b> se kholo, file:// se nahi.'
+      );
+    }, 500);
+  } else {
+    orbLabel.textContent = 'Ready — orb/mic se bolo ya type karo';
+  }
+})();
+</script>
+</body>
+</html>
